@@ -217,6 +217,7 @@ void init_screen(char *vram, int x, int y);
 void BoxFill8( unsigned char *p_p_vram, int numXpix, unsigned char c, int x0, int y0, int x1, int y1);
 void Putfont8_asc_sht( struct SHEET *p_sht, int x, int y, char c, int b, char *s, int len);
 void make_window8(unsigned char *buf, int xsize, int ysize, char *title);
+void make_textbox8(struct SHEET *sht, int x0, int y0, int sx, int sy, int c);
 
 /* dsctbl.c  */
 void init_gdtidt(void);
