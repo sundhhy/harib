@@ -28,7 +28,12 @@
 //------------------------------------------------------------------------------
 // local types
 //------------------------------------------------------------------------------
-
+struct TSS32 {
+	int backlink, esp0, ss0, esp1, ss1, esp2, ss2, cr3;
+	int eip, eflags, eax, ecx, edx, ebx, esp, ebp, esi, edi;
+	int es, cs, ss, ds, fs, gs;
+	int ldtr, iomap;
+};
 //------------------------------------------------------------------------------
 // local vars
 //------------------------------------------------------------------------------
@@ -38,6 +43,7 @@
 // local function prototypes
 //------------------------------------------------------------------------------
 static void set490( struct FIFO32 *p_fifo, int mode);
+void task_b_main(void);
 //============================================================================//
 //            P U B L I C   F U N C T I O N S                                 //
 //============================================================================//
@@ -77,6 +83,11 @@ void HariMain(void)
     0,   0,   0,   0,   0,   0,   0,   '7', '8', '9', '-', '4', '5', '6', '+', '1',
     '2', '3', '0', '.'
 	};
+    
+    /* task  */
+    struct TSS32 tss_a, tss_b;
+    struct SEGMENT_DESCRIPTOR *gdt = (struct SEGMENT_DESCRIPTOR *) ADR_GDT;
+    int task_b_esp;
 	
 	init_gdtidt();
 	init_pic();
@@ -108,9 +119,8 @@ void HariMain(void)
     
     memtotal = memtest( 0x00400000, 0xbfffffff);
 	memman_init( p_memman);
-	
-	memman_free( p_memman, 0x000400000, memtotal - 0x000400000);  //0x00001000 - 0x0009efff
 	memman_free( p_memman, 0x000001000, 0x0009e000);  //0x00001000 - 0x0009efff
+	memman_free( p_memman, 0x000400000, memtotal - 0x000400000);  //0x00001000 - 0x0009efff
 	binfo = ( struct BOOTINFO *)0x0ff0;
 
 	p_vram = binfo->vram; /* 斣抧傪戙擖 */
@@ -168,6 +178,31 @@ void HariMain(void)
 	Putfont8_asc_sht( p_sht_back ,  0, 32, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
     // sheet_refresh(  p_sht_back, 0, 0, binfo->scrnx,  48);
     
+    // tss init  
+    tss_a.ldtr = 0;
+    tss_a.iomap = 0x40000000;
+    tss_b.ldtr = 0;
+    tss_b.iomap = 0x40000000;
+    set_segmdesc(gdt + 3, 103,   &tss_a, AR_TSS32);
+    set_segmdesc(gdt + 4, 103,   &tss_b, AR_TSS32);
+    load_tr( 3 * 8);
+    task_b_esp = memman_alloc_4k( p_memman, 64 * 1024) + 64 * 1024;     //这个内存是在
+    tss_b.eip = ( int)&task_b_main;
+    tss_b.eflags = 0x00000202; //IF = 1
+    tss_b.eax = 0;
+	tss_b.ecx = 0;
+	tss_b.edx = 0;
+	tss_b.ebx = 0;
+	tss_b.esp = task_b_esp;
+	tss_b.ebp = 0;
+	tss_b.esi = 0;
+	tss_b.edi = 0;
+	tss_b.es = 1 * 8;
+	tss_b.cs = 2 * 8;
+	tss_b.ss = 1 * 8;
+	tss_b.ds = 1 * 8;
+	tss_b.fs = 1 * 8;
+	tss_b.gs = 1 * 8;
     
     
 	while(1) {
@@ -275,10 +310,9 @@ void HariMain(void)
 			}              
             else if( i == 10)
             {
-                // sprintf(s, "%010d", count);
-                // Putfont8_asc_sht( p_sht_win, 40, 28, COL8_000000, COL8_C6C6C6, s, strlen( s));
+
                 Putfont8_asc_sht( p_sht_back, 0, 64, COL8_FFFFFF, COL8_008484, "10[sec]", strlen( "10[sec]"));
-               
+                taskswitch4();
             }
             else if( i == 3)
             {
@@ -310,21 +344,7 @@ void HariMain(void)
                  
                
             }
-            // else if( i == 0)
-            // {
-              
-               
-               // timer_init( p_timer3, &fifo,1);
-               // BoxFill8( buf_back, binfo->scrnx, COL8_000000, 8, 96, 15, 111);
-                   
-               
-               // timer_settime( p_timer3, 50);
-               // sheet_refresh( p_sht_back, 8, 96, 15, 111); 
-               
-            // }
-            
-            
-			
+          
 		}
 		
 	}
@@ -354,6 +374,56 @@ static void set490( struct FIFO32 *p_fifo, int mode)
         }
     }
     return;
+}
+
+void task_b_main(void)
+{
+    
+    /*  fifo  */
+    struct FIFO32 fifo;
+    int fifobuf[128];
+    int i;
+    /*  timer   */
+    
+    struct TIMER* p_timer;
+    
+
+	
+    fifo32_init( &fifo, 128, fifobuf);
+
+    p_timer = timer_alloc();
+    timer_init( p_timer, &fifo, 1);
+    timer_settime( p_timer, 500);
+   
+    
+	while(1) { 
+        
+		io_cli();
+
+		if(  fifo32_status( &fifo) == 0)
+		{
+
+			io_sti();
+            io_hlt();
+		}
+		else
+		{
+            i = fifo32_get( &fifo);
+            io_sti();
+            
+            
+			if( i == 1)
+            {
+                taskswitch3();
+            }
+          
+
+            
+            
+			
+		}
+		
+	}
 }
 
 

@@ -113,43 +113,37 @@ void timer_settime( struct TIMER *p_timer, uint32_t timeout)
     e = io_load_eflags();
     io_cli();
     
+    next_timer = timerctl.p_timerHead;
      //插入到队列头部的情况
     if( p_timer->timeout <= timerctl.p_timerHead->timeout)
     {
-        p_timer->next_p_timer = timerctl.p_timerHead;
         timerctl.p_timerHead = p_timer;
+        p_timer->next_p_timer = next_timer;
         timerctl.nextTimeout = timeout;
+        io_store_eflags( e);
         return; 
     }
     
     //找到放当前这个定时器的位置，即第一个比当前的超时时间大的位置
-    now_timer = timerctl.p_timerHead;
-    next_timer = now_timer->next_p_timer;
+    // now_timer = timerctl.p_timerHead;
+    // next_timer = now_timer->next_p_timer;
     for( ;;)
     {
-        //用>= 是为了防止当timeout == 0xffffffff 时，哨兵失效
-        if( now_timer->timeout >= p_timer->timeout)
-            break;
         now_timer = next_timer;
         next_timer = next_timer->next_p_timer;
+        //用>= 是为了防止当timeout == 0xffffffff 时，哨兵失效
+        if( p_timer->timeout <= next_timer->timeout )
+        {
+            now_timer->next_p_timer = p_timer;
+            p_timer->next_p_timer = next_timer;
+            io_store_eflags( e);
+            return;
+        }
+           
         
     }
     
-   
-   
-    
-    now_timer->next_p_timer = p_timer;
-    p_timer->next_p_timer = next_timer;
-       
-        
-    
-    
-   
-    
-    timerctl.nextTimeout = timerctl.p_timerHead->timeout;
-    
-    io_store_eflags( e);
-    return;
+
     
 	
 	
