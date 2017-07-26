@@ -43,7 +43,7 @@ struct TSS32 {
 // local function prototypes
 //------------------------------------------------------------------------------
 static void set490( struct FIFO32 *p_fifo, int mode);
-void task_b_main(void);
+void task_b_main(struct SHEET *p_sht_back);
 //============================================================================//
 //            P U B L I C   F U N C T I O N S                                 //
 //============================================================================//
@@ -86,6 +86,7 @@ void HariMain(void)
     
     /* task  */
     struct TSS32 tss_a, tss_b;
+    // struct TIMER* p_tssTimer;
     struct SEGMENT_DESCRIPTOR *gdt = (struct SEGMENT_DESCRIPTOR *) ADR_GDT;
     int task_b_esp;
 	
@@ -179,6 +180,12 @@ void HariMain(void)
     // sheet_refresh(  p_sht_back, 0, 0, binfo->scrnx,  48);
     
     // tss init  
+   
+    
+    // p_tssTimer = timer_alloc();
+    // timer_init( p_tssTimer, &fifo, 2);
+    // timer_settime( p_tssTimer, 2);
+    Mt_init();
     tss_a.ldtr = 0;
     tss_a.iomap = 0x40000000;
     tss_b.ldtr = 0;
@@ -186,7 +193,8 @@ void HariMain(void)
     set_segmdesc(gdt + 3, 103,   &tss_a, AR_TSS32);
     set_segmdesc(gdt + 4, 103,   &tss_b, AR_TSS32);
     load_tr( 3 * 8);
-    task_b_esp = memman_alloc_4k( p_memman, 64 * 1024) + 64 * 1024;     //这个内存是在
+    task_b_esp = memman_alloc_4k( p_memman, 64 * 1024) + 64 * 1024  - 8;     //这个内存是在
+     *( (int *) (task_b_esp + 4)) = (int)p_sht_back;
     tss_b.eip = ( int)&task_b_main;
     tss_b.eflags = 0x00000202; //IF = 1
     tss_b.eax = 0;
@@ -204,6 +212,8 @@ void HariMain(void)
 	tss_b.fs = 1 * 8;
 	tss_b.gs = 1 * 8;
     
+    sprintf(s, "tss_a esp %x, eip:%x", tss_a.esp, tss_a.eip);
+	Putfont8_asc_sht( p_sht_back ,  0,48, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
     
 	while(1) {
         
@@ -312,8 +322,9 @@ void HariMain(void)
             {
 
                 Putfont8_asc_sht( p_sht_back, 0, 64, COL8_FFFFFF, COL8_008484, "10[sec]", strlen( "10[sec]"));
-                taskswitch4();
+                
             }
+            
             else if( i == 3)
             {
                 count = 0;
@@ -344,6 +355,13 @@ void HariMain(void)
                  
                
             }
+            //tss
+            // else if( i == 2)
+            // {
+
+                // farjmp( 0, 4 * 8);
+                // timer_settime( p_tssTimer, 2);
+            // }
           
 		}
 		
@@ -376,30 +394,44 @@ static void set490( struct FIFO32 *p_fifo, int mode)
     return;
 }
 
-void task_b_main(void)
+void task_b_main(struct SHEET *p_sht_back)
 {
     
     /*  fifo  */
     struct FIFO32 fifo;
     int fifobuf[128];
     int i;
-    /*  timer   */
+    /*  timer   */   
+    // struct TIMER* p_timer;
     
-    struct TIMER* p_timer;
+    char    s[12];
+    int count = 0, count0 = 0;
+    struct TIMER* p_timerPut;
     
+    //惈擻??
+    struct TIMER* p_timer_1s;
 
 	
     fifo32_init( &fifo, 128, fifobuf);
 
-    p_timer = timer_alloc();
-    timer_init( p_timer, &fifo, 1);
-    timer_settime( p_timer, 500);
+    // p_timer = timer_alloc();
+    // timer_init( p_timer, &fifo, 2);
+    // timer_settime( p_timer, 2);
+    
+    p_timerPut = timer_alloc();
+    //timer_init( p_timerPut, &fifo, 1);
+    //timer_settime( p_timerPut, 1);
+    
+    p_timer_1s = timer_alloc();
+    timer_init( p_timer_1s, &fifo, 100);
+    timer_settime( p_timer_1s, 100);
    
     
 	while(1) { 
-        
+        count ++;
+       
 		io_cli();
-
+        
 		if(  fifo32_status( &fifo) == 0)
 		{
 
@@ -412,9 +444,23 @@ void task_b_main(void)
             io_sti();
             
             
-			if( i == 1)
+			// if( i == 2)
+            // {
+               // farjmp( 0, 3 * 8);
+               // timer_settime( p_timer, 2);
+            // }
+            if( i == 1)
             {
-                taskswitch3();
+                sprintf(s, "%10d", count);
+                Putfont8_asc_sht( p_sht_back, 0, 144, COL8_FFFFFF, COL8_008484, s, strlen( s));
+                timer_settime( p_timerPut, 1);
+            }
+            else if( i == 100)
+            {
+                sprintf(s, "%10d", count - count0);
+                Putfont8_asc_sht( p_sht_back, 0, 128, COL8_FFFFFF, COL8_008484, s, strlen( s));
+                count0 = count;
+                timer_settime( p_timer_1s, 100);
             }
           
 

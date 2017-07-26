@@ -1,0 +1,1 @@
+asmhead.bin hankaku.bin ipl10.bin asmhead.lst bootpack.lst dsctbl.lst fifo.lst graphic.lst int.lst ipl10.lst keyboard.lst memman.lst mouse.lst naskfunc.lst sheet.lst timer.lst *.gas bootpack.obj dsctbl.obj fifo.obj graphic.obj hankaku.obj int.obj keyboard.obj memman.obj mouse.obj naskfunc.obj sheet.obj timer.obj bootpack.map bootpack.bim bootpack.hrb haribote.sys

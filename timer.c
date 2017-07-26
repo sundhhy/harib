@@ -152,11 +152,12 @@ void timer_settime( struct TIMER *p_timer, uint32_t timeout)
     
 }
 
-
 void inthandler20( int *esp)
 {
     struct TIMER *p_timer;
     short i, j;
+    //mtask
+    char ts = 0;
     io_out8( PIC0_OCW2 , 0x60);
     
     timerctl.count ++;
@@ -170,7 +171,16 @@ void inthandler20( int *esp)
         if( p_timer->timeout > timerctl.count) 
             break;
         p_timer->flags = TIMER_FLAGS_ALLOC;
-        fifo32_put( p_timer->p_fifo, p_timer->data);
+        if( p_timer != p_mt_timer)
+        // if( 1)
+        {
+            fifo32_put( p_timer->p_fifo, p_timer->data);
+        }
+        else
+        {
+            ts = 1;
+            
+        }
         p_timer = p_timer->next_p_timer;
     }
    
@@ -179,6 +189,10 @@ void inthandler20( int *esp)
     timerctl.p_timerHead = p_timer;
     timerctl.nextTimeout = p_timer->timeout;
 
+    if( ts)
+    {
+        Mt_taskSwitch();
+    }
     
     return;
     

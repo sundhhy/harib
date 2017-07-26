@@ -183,6 +183,10 @@ extern struct FIFO8 keyfifo;
 extern struct FIFO8 mousefifo;
 /* timer.c    */
 extern struct TIMERCTL  timerctl;
+
+/* mstask.c  */
+extern struct TIMER* p_mt_timer;
+
 //------------------------------------------------------------------------------
 // function prototypes
 //------------------------------------------------------------------------------
@@ -208,8 +212,7 @@ void asm_inthandler21(void);
 void asm_inthandler27(void);
 void asm_inthandler2c(void);
 unsigned int memtest_sub( unsigned int start, unsigned int end);
-void taskswitch4(void);
-void taskswitch3(void);
+void farjmp(int rip, int cs);
 
 /* graphic.c  */
 void init_palette(void);
@@ -289,3 +292,9 @@ void timer_free( struct TIMER *p_timer);
 void timer_init( struct TIMER *p_timer, struct FIFO32 *p_fifo, int data);
 void timer_settime( struct TIMER *p_timer, uint32_t timeout);
 // void settimer( uint32_t timeout, struct FIFO8 *p_fifo, uint8_t data);
+
+
+/* mtask.c   */
+void Mt_init(void);
+void Mt_taskSwitch(void);
+
