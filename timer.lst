@@ -9,7 +9,7 @@
      9 00000000                                 	EXTERN	_io_store_eflags
     10 00000000                                 	EXTERN	_p_mt_timer
     11 00000000                                 	EXTERN	_fifo32_put
-    12 00000000                                 	EXTERN	_Mt_taskSwitch
+    12 00000000                                 	EXTERN	_Task_switch
     13 00000000                                 [FILE "timer.c"]
     14                                          [SECTION .text]
     15 00000000                                 	GLOBAL	_init_pit
@@ -172,7 +172,7 @@
    172 0000018B 5B                              	POP	EBX
    173 0000018C 5E                              	POP	ESI
    174 0000018D 5D                              	POP	EBP
-   175 0000018E E9 [00000000]                   	JMP	_Mt_taskSwitch
+   175 0000018E E9 [00000000]                   	JMP	_Task_switch
    176 00000193                                 	GLOBAL	_timerctl
    177                                          [SECTION .data]
    178 00000000                                 	ALIGNB	16

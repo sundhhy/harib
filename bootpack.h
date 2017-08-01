@@ -89,6 +89,10 @@ typedef unsigned           int uint32_t;
 
 /* timer.c   */
 #define MAX_TIMER           500
+
+/* task  */
+#define MAX_TASKS       1000
+#define TASK_GDT0       3  
  //------------------------------------------------------------------------------
 // typedef
 //------------------------------------------------------------------------------
@@ -174,6 +178,26 @@ struct TIMERCTL {
     struct TIMER arr_timer[ MAX_TIMER];
     
 };
+
+/* task   */
+struct TSS32 {
+	int backlink, esp0, ss0, esp1, ss1, esp2, ss2, cr3;
+	int eip, eflags, eax, ecx, edx, ebx, esp, ebp, esi, edi;
+	int es, cs, ss, ds, fs, gs;
+	int ldtr, iomap;
+};
+
+struct TASK {
+    int sel, flags;
+    struct TSS32    tss;
+};
+
+struct TASKCTL {
+    int numRunning;
+    int now;
+    struct TASK *arr_p_tasks[MAX_TASKS];
+    struct TASK arr_tasks[MAX_TASKS];
+};   
 //------------------------------------------------------------------------------
 // global variable declarations
 //------------------------------------------------------------------------------
@@ -228,7 +252,7 @@ void make_textbox8(struct SHEET *sht, int x0, int y0, int sx, int sy, int c);
 
 /* dsctbl.c  */
 void init_gdtidt(void);
-
+void set_segmdesc( struct SEGMENT_DESCRIPTOR *p_sd, unsigned int limit, int base, int ar);
 /* int.c */
 void init_pic(void);
 
@@ -295,6 +319,9 @@ void timer_settime( struct TIMER *p_timer, uint32_t timeout);
 
 
 /* mtask.c   */
-void Mt_init(void);
-void Mt_taskSwitch(void);
+
+struct TASK *Task_init( struct MEMMAN *p_mem);
+struct TASK *Task_alloc( void);
+void Task_run( struct TASK *p_task);
+void Task_switch(void);
 

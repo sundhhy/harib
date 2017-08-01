@@ -191,7 +191,8 @@ void inthandler20( int *esp)
 
     if( ts)
     {
-        Mt_taskSwitch();
+        Task_switch();
+        // Mt_taskSwitch();
     }
     
     return;

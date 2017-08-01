@@ -28,12 +28,7 @@
 //------------------------------------------------------------------------------
 // local types
 //------------------------------------------------------------------------------
-struct TSS32 {
-	int backlink, esp0, ss0, esp1, ss1, esp2, ss2, cr3;
-	int eip, eflags, eax, ecx, edx, ebx, esp, ebp, esi, edi;
-	int es, cs, ss, ds, fs, gs;
-	int ldtr, iomap;
-};
+
 //------------------------------------------------------------------------------
 // local vars
 //------------------------------------------------------------------------------
@@ -85,7 +80,7 @@ void HariMain(void)
 	};
     
     /* task  */
-    struct TSS32 tss_a, tss_b;
+    struct TSS32  *p_tkb;;
     // struct TIMER* p_tssTimer;
     struct SEGMENT_DESCRIPTOR *gdt = (struct SEGMENT_DESCRIPTOR *) ADR_GDT;
     int task_b_esp;
@@ -185,35 +180,27 @@ void HariMain(void)
     // p_tssTimer = timer_alloc();
     // timer_init( p_tssTimer, &fifo, 2);
     // timer_settime( p_tssTimer, 2);
-    Mt_init();
-    tss_a.ldtr = 0;
-    tss_a.iomap = 0x40000000;
-    tss_b.ldtr = 0;
-    tss_b.iomap = 0x40000000;
-    set_segmdesc(gdt + 3, 103,   &tss_a, AR_TSS32);
-    set_segmdesc(gdt + 4, 103,   &tss_b, AR_TSS32);
-    load_tr( 3 * 8);
+    
+    Task_init( p_memman);
+    p_tkb = Task_alloc();
+   
+   
     task_b_esp = memman_alloc_4k( p_memman, 64 * 1024) + 64 * 1024  - 8;     //这个内存是在
      *( (int *) (task_b_esp + 4)) = (int)p_sht_back;
-    tss_b.eip = ( int)&task_b_main;
-    tss_b.eflags = 0x00000202; //IF = 1
-    tss_b.eax = 0;
-	tss_b.ecx = 0;
-	tss_b.edx = 0;
-	tss_b.ebx = 0;
-	tss_b.esp = task_b_esp;
-	tss_b.ebp = 0;
-	tss_b.esi = 0;
-	tss_b.edi = 0;
-	tss_b.es = 1 * 8;
-	tss_b.cs = 2 * 8;
-	tss_b.ss = 1 * 8;
-	tss_b.ds = 1 * 8;
-	tss_b.fs = 1 * 8;
-	tss_b.gs = 1 * 8;
+
+	p_tkb->esp = task_b_esp;
+	p_tkb->es = 1 * 8;
+	p_tkb->cs = 2 * 8;
+	p_tkb->ss = 1 * 8;
+	p_tkb->ds = 1 * 8;
+	p_tkb->fs = 1 * 8;
+	p_tkb->gs = 1 * 8;
+    p_tkb->eip = (int)&task_b_main;
     
-    sprintf(s, "tss_a esp %x, eip:%x", tss_a.esp, tss_a.eip);
-	Putfont8_asc_sht( p_sht_back ,  0,48, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
+    Task_run( p_tkb);
+    
+    // sprintf(s, "tss_a esp %x, eip:%x", tss_a.esp, tss_a.eip);
+	// Putfont8_asc_sht( p_sht_back ,  0,48, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
     
 	while(1) {
         
