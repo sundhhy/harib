@@ -44,8 +44,6 @@ void task_b_main(struct SHEET *p_sht_back);
 //============================================================================//
 void HariMain(void)
 {
-	char *p_vram; /* pという変数は、BYTE [...]用の番地 */
-	int xSize, ySize;
 	int	mx, my;
 	struct BOOTINFO *binfo;
 	char s[40];
@@ -56,8 +54,8 @@ void HariMain(void)
 	struct MEMMAN *p_memman = ( struct MEMMAN *)MEMMAN_ADDR;
     
     struct SHTCTL *p_shtctl;
-    struct SHEET *p_sht_back, *p_sht_mouse, *p_sht_win;
-    uint8_t    *buf_back, *buf_win, buf_mouse[256];
+    struct SHEET *p_sht_back, *p_sht_mouse, *p_sht_win, *p_sht_winb[3];
+    uint8_t    *buf_back, *buf_win, *buf_winb, buf_mouse[256];
     /*window   */
     int cursor_x, cursor_c;
     
@@ -66,7 +64,7 @@ void HariMain(void)
     int fifobuf[128];
     /*  timer   */
     
-    struct TIMER* p_timer, *p_timer2, *p_timer3;
+    struct TIMER* p_timer;
     
     
     /* keyboard  */
@@ -80,7 +78,7 @@ void HariMain(void)
 	};
     
     /* task  */
-    struct TSS32  *p_tkb;;
+    struct TSS32  *p_tka, *p_tkb[3];
     // struct TIMER* p_tssTimer;
     struct SEGMENT_DESCRIPTOR *gdt = (struct SEGMENT_DESCRIPTOR *) ADR_GDT;
     int task_b_esp;
@@ -88,7 +86,7 @@ void HariMain(void)
 	init_gdtidt();
 	init_pic();
 	io_sti();
-    fifo32_init( &fifo, 128, fifobuf);
+    fifo32_init( &fifo, 128, fifobuf, 0);
     init_pit();
 	
 	
@@ -100,16 +98,9 @@ void HariMain(void)
     
   
     
-    set490( &fifo, 0);
-    p_timer = timer_alloc();
-    timer_init( p_timer, &fifo, 10);
-    timer_settime( p_timer, 1000);
-    p_timer2 = timer_alloc();
-    timer_init( p_timer2, &fifo, 3);
-    timer_settime( p_timer2, 300);
-    p_timer3 = timer_alloc();
-    timer_init( p_timer3, &fifo,1);
-    timer_settime( p_timer3, 50);
+    // set490( &fifo, 0);
+   
+    
     
 	init_palette(); /* パレットを設定 */
     
@@ -119,9 +110,10 @@ void HariMain(void)
 	memman_free( p_memman, 0x000400000, memtotal - 0x000400000);  //0x00001000 - 0x0009efff
 	binfo = ( struct BOOTINFO *)0x0ff0;
 
-	p_vram = binfo->vram; /* 番地を代入 */
-	xSize = binfo->scrnx;
-	ySize = binfo->scrny;
+
+    
+    p_tka = Task_init( p_memman);
+    fifo.p_tsk = p_tka;
     
     //sheet init
     p_shtctl = shtctl_init( p_memman, binfo->vram, binfo->scrnx, binfo->scrny);
@@ -130,38 +122,72 @@ void HariMain(void)
     buf_back = ( uint8_t *)memman_alloc_4k( p_memman, binfo->scrnx * binfo->scrny);
     sheet_setbuf( p_sht_back, buf_back, binfo->scrnx, binfo->scrny, -1);    //无透明色
     init_screen8( buf_back, binfo->scrnx, binfo->scrny);
-    sheet_slide(  p_sht_back, 0, 0);
+    
+    for( i = 0; i < 3; i++)
+    {
+        p_sht_winb[i] = sheet_alloc( p_shtctl);
+        buf_winb = ( uint8_t *)memman_alloc_4k( p_memman,144 * 52);
+        sheet_setbuf( p_sht_winb[i], buf_winb, 144, 52, -1);    //无透明色
+        sprintf( s, "taskb%d", i);
+        make_window8( buf_winb, 144, 52, s, 0);
+        
+        
+        p_tkb[i] = Task_alloc();
+        p_tkb[i]->esp = memman_alloc_4k( p_memman, 64 * 1024) + 64 * 1024  - 8;
+        p_tkb[i]->es = 1 * 8;
+        p_tkb[i]->cs = 2 * 8;
+        p_tkb[i]->ss = 1 * 8;
+        p_tkb[i]->ds = 1 * 8;
+        p_tkb[i]->fs = 1 * 8;
+        p_tkb[i]->gs = 1 * 8;
+         *( (int *) (p_tkb[ i]->esp + 4)) = (int) p_sht_winb[i];
+        p_tkb[i]->eip = (int)&task_b_main;      
+        Task_run( p_tkb[i]);
+        
+    }
+    
+    
    
     
     
     p_sht_win = sheet_alloc( p_shtctl);
     buf_win  = ( uint8_t *)memman_alloc_4k( p_memman, 160* 52);
-    sheet_setbuf( p_sht_win, buf_win, 160, 52, -1);    //无透明色
-    make_window8( buf_win, 160, 52, "counter");
-    make_textbox8(  p_sht_win, 8, 28, 144, 16, COL8_FFFFFF);
+    sheet_setbuf( p_sht_win, buf_win, 144, 52, -1);    //无透明色
+    make_window8( buf_win, 144, 52, "task_a", 1);
+    make_textbox8(  p_sht_win, 8, 28, 128, 16, COL8_FFFFFF);
     cursor_x = 8;
     cursor_c = COL8_FFFFFF;
     
+    p_timer = timer_alloc();
+    timer_init( p_timer, &fifo, 1);
+    timer_settime( p_timer, 50);
     
-    sheet_slide(  p_sht_win, 80, 72);
     
-   
-    
-   
+    // 
     p_sht_mouse = sheet_alloc( p_shtctl);
     sheet_setbuf( p_sht_mouse, buf_mouse, 16, 16, 99);      //99好像是随意指定的，但是不要跟?形的?色一?就行了
     init_mouse_cursor8( buf_mouse, 99);
 	mx = (binfo->scrnx - 16) / 2; /* 画面中央になるように座標計算 */
 	my = (binfo->scrny - 28 - 16) / 2;   
+    
+    sheet_slide(  p_sht_back, 0, 0);
+    sheet_slide(  p_sht_winb[0], 168, 56);
+    sheet_slide(  p_sht_winb[1], 8, 116);
+    sheet_slide(  p_sht_winb[2], 168, 116);
+    sheet_slide(  p_sht_win, 8, 56);
     sheet_slide(  p_sht_mouse, mx, my);        
-    
+
+
     sheet_updown(  p_sht_back, 0);
-    sheet_updown(  p_sht_win, 1);
-    sheet_updown(  p_sht_mouse, 2);
+    sheet_updown(  p_sht_winb[0], 1);
+    sheet_updown(  p_sht_winb[1], 2);
+    sheet_updown(  p_sht_winb[2], 3);
+    sheet_updown(  p_sht_win, 4);
+    sheet_updown(  p_sht_mouse, 5);
     
     
-    sprintf(s, "(%p, %p, %p)",buf_mouse, buf_back, buf_win);
-	Putfont8_asc_sht( p_sht_back ,  0, 400, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
+    // sprintf(s, "(%p, %p, %p)",buf_mouse, buf_back, buf_win);
+	// Putfont8_asc_sht( p_sht_back ,  0, 400, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
 	
 	
 	sprintf(s, "(%d, %d)", mx, my);
@@ -172,35 +198,10 @@ void HariMain(void)
 	
 	sprintf(s, "memory %dMB, free:%dkB", memtotal/( 1024 * 1024), memman_total( p_memman)/1024);
 	Putfont8_asc_sht( p_sht_back ,  0, 32, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
-    // sheet_refresh(  p_sht_back, 0, 0, binfo->scrnx,  48);
-    
-    // tss init  
-   
-    
-    // p_tssTimer = timer_alloc();
-    // timer_init( p_tssTimer, &fifo, 2);
-    // timer_settime( p_tssTimer, 2);
-    
-    Task_init( p_memman);
-    p_tkb = Task_alloc();
-   
-   
-    task_b_esp = memman_alloc_4k( p_memman, 64 * 1024) + 64 * 1024  - 8;     //ﾕ篋ﾚｴ賁ﾇﾔﾚ
-     *( (int *) (task_b_esp + 4)) = (int)p_sht_back;
 
-	p_tkb->esp = task_b_esp;
-	p_tkb->es = 1 * 8;
-	p_tkb->cs = 2 * 8;
-	p_tkb->ss = 1 * 8;
-	p_tkb->ds = 1 * 8;
-	p_tkb->fs = 1 * 8;
-	p_tkb->gs = 1 * 8;
-    p_tkb->eip = (int)&task_b_main;
     
-    Task_run( p_tkb);
-    
-    // sprintf(s, "tss_a esp %x, eip:%x", tss_a.esp, tss_a.eip);
-	// Putfont8_asc_sht( p_sht_back ,  0,48, COL8_FFFFFF,  COL8_008484, s,  strlen( s));
+   
+   
     
 	while(1) {
         
@@ -214,7 +215,7 @@ void HariMain(void)
 		io_cli();
 		if(  fifo32_status( &fifo) == 0)
 		{
-			
+			Task_sleep( p_tka);
 			io_sti();
 		}
 		else
@@ -228,7 +229,7 @@ void HariMain(void)
 				
 				sprintf(s, "%02x", i - 256);
                 Putfont8_asc_sht( p_sht_back, 0, 16, COL8_FFFFFF, COL8_008484, s, strlen( s));
-                if( i < 256 + 0x54 && cursor_x  < 144)
+                if( i < 256 + 0x54 && cursor_x  < 128)
                 {
                     if( keytable[ i - 256] != 0)
                     {
@@ -305,24 +306,12 @@ void HariMain(void)
 					
 				}
 			}              
-            else if( i == 10)
-            {
-
-                Putfont8_asc_sht( p_sht_back, 0, 64, COL8_FFFFFF, COL8_008484, "10[sec]", strlen( "10[sec]"));
-                
-            }
-            
-            else if( i == 3)
-            {
-                count = 0;
-                Putfont8_asc_sht( p_sht_back, 0, 80, COL8_FFFFFF, COL8_008484, "3[sec]", strlen( "3[sec]"));
-            }
             else if( i <= 1)
             {
              
                 if( i != 0)
                 {
-                    timer_init( p_timer3, &fifo,0);
+                    timer_init( p_timer, &fifo,0);
                     cursor_c = COL8_FFFFFF;
                     
 
@@ -330,25 +319,19 @@ void HariMain(void)
                 }
                 else
                 {
-                    timer_init( p_timer3, &fifo,1);
+                    timer_init( p_timer, &fifo,1);
                     cursor_c = COL8_000000;
                 }
                 
                 BoxFill8( p_sht_win->buf, p_sht_win->bxsize, cursor_c, cursor_x, 28, cursor_x + 7, 43);
                 sheet_refresh( p_sht_win,  cursor_x, 28, cursor_x + 8, 44); 
-                timer_settime( p_timer3, 50);
+                timer_settime( p_timer, 50);
 
                 
                  
                
             }
-            //tss
-            // else if( i == 2)
-            // {
-
-                // farjmp( 0, 4 * 8);
-                // timer_settime( p_tssTimer, 2);
-            // }
+           
           
 		}
 		
@@ -388,26 +371,25 @@ void task_b_main(struct SHEET *p_sht_back)
     struct FIFO32 fifo;
     int fifobuf[128];
     int i;
-    /*  timer   */   
-    // struct TIMER* p_timer;
+
     
     char    s[12];
-    int count = 0, count0 = 0;
-    struct TIMER* p_timerPut;
+    
     
     //性能??
+    int count = 0, count0 = 0;
+    struct TIMER* p_timerPut;
     struct TIMER* p_timer_1s;
 
 	
-    fifo32_init( &fifo, 128, fifobuf);
+    fifo32_init( &fifo, 128, fifobuf, 0);
 
-    // p_timer = timer_alloc();
-    // timer_init( p_timer, &fifo, 2);
-    // timer_settime( p_timer, 2);
+    
     
     p_timerPut = timer_alloc();
-    //timer_init( p_timerPut, &fifo, 1);
-    //timer_settime( p_timerPut, 1);
+    timer_init( p_timerPut, &fifo, 1);
+    timer_settime( p_timerPut, 1);
+
     
     p_timer_1s = timer_alloc();
     timer_init( p_timer_1s, &fifo, 100);
@@ -431,11 +413,7 @@ void task_b_main(struct SHEET *p_sht_back)
             io_sti();
             
             
-			// if( i == 2)
-            // {
-               // farjmp( 0, 3 * 8);
-               // timer_settime( p_timer, 2);
-            // }
+	
             if( i == 1)
             {
                 sprintf(s, "%10d", count);
@@ -445,7 +423,7 @@ void task_b_main(struct SHEET *p_sht_back)
             else if( i == 100)
             {
                 sprintf(s, "%10d", count - count0);
-                Putfont8_asc_sht( p_sht_back, 0, 128, COL8_FFFFFF, COL8_008484, s, strlen( s));
+                Putfont8_asc_sht( p_sht_back, 24, 28, COL8_FFFFFF, COL8_C6C6C6, s, strlen( s));
                 count0 = count;
                 timer_settime( p_timer_1s, 100);
             }

@@ -26,8 +26,7 @@ struct TASKCTL  *p_taskctl;
 //------------------------------------------------------------------------------
 // const defines
 //------------------------------------------------------------------------------
-#define TASK_USE        1
-#define TASK_RUN        2
+
 //------------------------------------------------------------------------------
 // local types
 //------------------------------------------------------------------------------
@@ -118,6 +117,55 @@ void Task_run( struct TASK *p_task)
     p_task->flags = TASK_RUN;
     p_taskctl->arr_p_tasks[ p_taskctl->numRunning] = p_task;
     p_taskctl->numRunning ++;
+    return;
+    
+    
+}
+
+void Task_sleep( struct TASK *p_task)
+{
+    int i = 0;
+    char ts = 00;
+    //如果任务是运行中的任务，则要把这个任务找出来
+    //并把它从运行的任务列表中移除
+    //同时要保证其他任务不受影响
+    if( p_task->flags == TASK_RUN)
+    {
+        if( p_task == p_taskctl->arr_p_tasks[ p_taskctl->now])
+            ts = 1;
+        
+        for( i = 0; i < p_taskctl->numRunning; i++)
+        {
+            if( p_task == p_taskctl->arr_p_tasks[ i])
+                break;
+            p_taskctl->numRunning --;
+            
+            if( i < p_taskctl->now)
+                p_taskctl->now --;
+            
+            for(; i < p_taskctl->numRunning; i++)
+            {
+                p_taskctl->arr_p_tasks[ i] = p_taskctl->arr_p_tasks[ i + 1];
+                
+            }
+            
+            p_task->flags = TASK_USE;
+            
+            if( ts)
+            {
+                if( p_taskctl->now >= p_taskctl->numRunning)
+                {
+                    p_taskctl->now = 0;
+                    
+                }
+                farjmp( 0, p_taskctl->arr_p_tasks[ p_taskctl->now]->sel);
+                
+            }
+            
+        }
+        
+    }
+   
     return;
     
     

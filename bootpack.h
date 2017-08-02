@@ -93,9 +93,13 @@ typedef unsigned           int uint32_t;
 /* task  */
 #define MAX_TASKS       1000
 #define TASK_GDT0       3  
+#define TASK_USE        1
+#define TASK_RUN        2
  //------------------------------------------------------------------------------
 // typedef
 //------------------------------------------------------------------------------
+//mtask.c
+struct TASK;
 
 /* asmhead.nas	*/
 struct BOOTINFO {
@@ -131,6 +135,8 @@ struct FIFO8 {
 struct FIFO32 {
 	int *buf;
 	int p, q, size, free, flags;
+    struct TASK *p_tsk;
+    
 };
 
 /* keyboard.c */
@@ -247,7 +253,7 @@ void PutBlock8_8( char *p_vram, int vxsize, int pxsize, int pysize, int px0, int
 void init_screen(char *vram, int x, int y);
 void BoxFill8( unsigned char *p_p_vram, int numXpix, unsigned char c, int x0, int y0, int x1, int y1);
 void Putfont8_asc_sht( struct SHEET *p_sht, int x, int y, char c, int b, char *s, int len);
-void make_window8(unsigned char *buf, int xsize, int ysize, char *title);
+void make_window8(unsigned char *buf, int xsize, int ysize, char *title, char act);
 void make_textbox8(struct SHEET *sht, int x0, int y0, int sx, int sy, int c);
 
 /* dsctbl.c  */
@@ -271,7 +277,7 @@ void fifo8_init( struct FIFO8 *fifo, int size, unsigned char *buf);
 int fifo8_status( struct FIFO8 *fifo);
 int fifo8_put( struct FIFO8 *fifo, unsigned char data);
 int fifo8_get( struct FIFO8 *fifo);
-void fifo32_init( struct FIFO32 *fifo, int size, int *buf);
+void fifo32_init( struct FIFO32 *fifo, int size, int *buf, struct TASK *p_wakeupTsk);
 int fifo32_status( struct FIFO32 *fifo);
 int fifo32_put( struct FIFO32 *fifo, int data);
 int fifo32_get( struct FIFO32 *fifo);
@@ -324,4 +330,4 @@ struct TASK *Task_init( struct MEMMAN *p_mem);
 struct TASK *Task_alloc( void);
 void Task_run( struct TASK *p_task);
 void Task_switch(void);
-
+void Task_sleep( struct TASK *p_task);

@@ -53,7 +53,7 @@ void fifo8_init( struct FIFO8 *fifo, int size, unsigned char *buf)
 	
 }
 
-void fifo32_init( struct FIFO32 *fifo, int size, int *buf)
+void fifo32_init( struct FIFO32 *fifo, int size, int *buf,  struct TASK *p_wakeupTsk)
 {
 	fifo->buf = buf;
 	fifo->size = size;
@@ -61,6 +61,7 @@ void fifo32_init( struct FIFO32 *fifo, int size, int *buf)
 	fifo->p = 0;
 	fifo->q = 0;
 	fifo->flags = 0;
+    fifo->p_tsk = p_wakeupTsk;
 	return;
 	
 }
@@ -99,6 +100,17 @@ int fifo32_put( struct FIFO32 *fifo, int data)
 	if( fifo->p == fifo->size)
 		fifo->p = 0;
 	fifo->free --;
+    
+    if( fifo->p_tsk)
+    {
+        if( fifo->p_tsk->flags != TASK_RUN)
+        {
+            
+            Task_run( fifo->p_tsk);
+        }
+        
+    }
+    
 	return 0;
 	
 }
