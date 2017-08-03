@@ -54,5 +54,8 @@
     54 00000095                                 _inthandler27:
     55 00000095 55                              	PUSH	EBP
     56 00000096 89 E5                           	MOV	EBP,ESP
-    57 00000098 5D                              	POP	EBP
-    58 00000099 C3                              	RET
+    57 00000098 6A 67                           	PUSH	103
+    58 0000009A 6A 20                           	PUSH	32
+    59 0000009C E8 [00000000]                   	CALL	_io_out8
+    60 000000A1 C9                              	LEAVE
+    61 000000A2 C3                              	RET

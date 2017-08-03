@@ -1,176 +1,63 @@
+/* FIFOライブラリ */
+
 #include "bootpack.h"
-#include <stdio.h>
 
-//============================================================================//
-//            G L O B A L   D E F I N I T I O N S                             //
-//============================================================================//
+#define FLAGS_OVERRUN		0x0001
 
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// module global vars
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// global function prototypes
-//------------------------------------------------------------------------------
-
-//============================================================================//
-//            P R I V A T E   D E F I N I T I O N S                           //
-//============================================================================//
-
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local types
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local vars
-//------------------------------------------------------------------------------
-
-
-//------------------------------------------------------------------------------
-// local function prototypes
-//------------------------------------------------------------------------------
-
-//============================================================================//
-//            P U B L I C   F U N C T I O N S                                 //
-//============================================================================//
-void fifo8_init( struct FIFO8 *fifo, int size, unsigned char *buf)
+void fifo32_init(struct FIFO32 *fifo, int size, int *buf, struct TASK *task)
+/* FIFOバッファの初期化 */
 {
-	fifo->buf = buf;
 	fifo->size = size;
-	fifo->free = size;
-	fifo->p = 0;
-	fifo->q = 0;
+	fifo->buf = buf;
+	fifo->free = size; /* 空き */
 	fifo->flags = 0;
+	fifo->p = 0; /* 書き込み位置 */
+	fifo->q = 0; /* 読み込み位置 */
+	fifo->task = task; /* データが入ったときに起こすタスク */
 	return;
-	
 }
 
-void fifo32_init( struct FIFO32 *fifo, int size, int *buf,  struct TASK *p_wakeupTsk)
+int fifo32_put(struct FIFO32 *fifo, int data)
+/* FIFOへデータを送り込んで蓄える */
 {
-	fifo->buf = buf;
-	fifo->size = size;
-	fifo->free = size;
-	fifo->p = 0;
-	fifo->q = 0;
-	fifo->flags = 0;
-    fifo->p_tsk = p_wakeupTsk;
-	return;
-	
-}
-
-
-
-int fifo8_put( struct FIFO8 *fifo, unsigned char data)
-{
-	if( fifo->free == 0) 
-	{
+	if (fifo->free == 0) {
+		/* 空きがなくてあふれた */
 		fifo->flags |= FLAGS_OVERRUN;
 		return -1;
-		
 	}
-	
-	fifo->buf[ fifo->p] = data;
-	fifo->p ++;
-	if( fifo->p == fifo->size)
+	fifo->buf[fifo->p] = data;
+	fifo->p++;
+	if (fifo->p == fifo->size) {
 		fifo->p = 0;
-	fifo->free --;
+	}
+	fifo->free--;
+	if (fifo->task != 0) {
+		if (fifo->task->flags != 2) { /* タスクが寝ていたら */
+			task_run(fifo->task, -1, 0); /* 起こしてあげる */
+		}
+	}
 	return 0;
-	
 }
 
-int fifo32_put( struct FIFO32 *fifo, int data)
-{
-	if( fifo->free == 0) 
-	{
-		fifo->flags |= FLAGS_OVERRUN;
-		return -1;
-		
-	}
-	
-	fifo->buf[ fifo->p] = data;
-	fifo->p ++;
-	if( fifo->p == fifo->size)
-		fifo->p = 0;
-	fifo->free --;
-    
-    if( fifo->p_tsk)
-    {
-        if( fifo->p_tsk->flags != TASK_RUN)
-        {
-            
-            Task_run( fifo->p_tsk);
-        }
-        
-    }
-    
-	return 0;
-	
-}
-
-int fifo8_get( struct FIFO8 *fifo)
+int fifo32_get(struct FIFO32 *fifo)
+/* FIFOからデータを一つとってくる */
 {
 	int data;
-	if( fifo->free == fifo->size)
+	if (fifo->free == fifo->size) {
+		/* バッファが空っぽのときは、とりあえず-1が返される */
 		return -1;
-	
-	data = fifo->buf[ fifo->q];
-	fifo->q ++;
-	if( fifo->q == fifo->size)
+	}
+	data = fifo->buf[fifo->q];
+	fifo->q++;
+	if (fifo->q == fifo->size) {
 		fifo->q = 0;
-	fifo->free ++;
+	}
+	fifo->free++;
 	return data;
 }
 
-int fifo32_get( struct FIFO32 *fifo)
+int fifo32_status(struct FIFO32 *fifo)
+/* どのくらいデータが溜まっているかを報告する */
 {
-	int data;
-	if( fifo->free == fifo->size)
-		return -1;
-	
-	data = fifo->buf[ fifo->q];
-	fifo->q ++;
-	if( fifo->q == fifo->size)
-		fifo->q = 0;
-	fifo->free ++;
-	return data;
-}
-
-int fifo8_status( struct FIFO8 *fifo)
-{
-	
 	return fifo->size - fifo->free;
 }
-
-int fifo32_status( struct FIFO32 *fifo)
-{
-	
-	return fifo->size - fifo->free;
-}
-//=========================================================================//
-//                                                                         //
-//          P R I V A T E   D E F I N I T I O N S                          //
-//                                                                         //
-//=========================================================================//
-/// \name Private Functions
-/// \{
-
-
-
-
-
-
-
-
-
-
-
-
-

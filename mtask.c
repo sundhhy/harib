@@ -1,212 +1,180 @@
-#include <stdio.h>
+/* É}ÉãÉ`É^ÉXÉNä÷åW */
+
 #include "bootpack.h"
-//============================================================================//
-//            G L O B A L   D E F I N I T I O N S                             //
-//============================================================================//
 
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
+struct TASKCTL *taskctl;
+struct TIMER *task_timer;
 
-//------------------------------------------------------------------------------
-// module global vars
-//------------------------------------------------------------------------------
-
-struct TIMER *p_mt_timer;
-struct TASKCTL  *p_taskctl;
-
-//------------------------------------------------------------------------------
-// global function prototypes
-//------------------------------------------------------------------------------
-
-//============================================================================//
-//            P R I V A T E   D E F I N I T I O N S                           //
-//============================================================================//
-
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local types
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local vars
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local function prototypes
-//------------------------------------------------------------------------------
-
-//============================================================================//
-//            P U B L I C   F U N C T I O N S                                 //
-//============================================================================//
-struct TASK *Task_init( struct MEMMAN *p_mem)
+struct TASK *task_now(void)
 {
-    int i;
-    struct TASK *p_tk;
-    struct SEGMENT_DESCRIPTOR *gdt = (struct SEGMENT_DESCRIPTOR *) ADR_GDT;
-    
-    p_taskctl =  memman_alloc_4k( p_mem, sizeof( struct TASKCTL));  
-    
-    for( i = 0; i < MAX_TASKS; i++)
-    {
-        
-        p_taskctl->arr_tasks[i].flags = 0;
-        p_taskctl->arr_tasks[i].sel = ( TASK_GDT0 + i) * 8;
-        set_segmdesc( gdt + TASK_GDT0 + i, 103, (int )&p_taskctl->arr_tasks[i].sel, AR_TSS32);
-    }
-    
-    p_tk = Task_alloc();
-    p_tk->flags = TASK_RUN;
-    
-    p_taskctl->numRunning = 1;
-    p_taskctl->now = 0;
-    p_taskctl->arr_p_tasks[0] = p_tk;
-    load_tr( p_tk->sel);
-    p_mt_timer = timer_alloc();
-    timer_settime( p_mt_timer, 2);
-    
-    return p_tk;
-    
+	struct TASKLEVEL *tl = &taskctl->level[taskctl->now_lv];
+	return tl->tasks[tl->now];
 }
 
-struct TASK *Task_alloc( void)
+void task_add(struct TASK *task)
 {
-    
-    int i;
-    struct TASK *p_tk;
-    
-    for( i = 0; i < MAX_TASKS; i++)
-    {
-        if( p_taskctl->arr_tasks[i].flags == 0)
-        {
-            p_tk = &p_taskctl->arr_tasks[i];         
-            p_tk->flags = TASK_USE;
-            
-            p_tk->tss.eflags = 0x00000202; //IF = 1
-            p_tk->tss.eax = 0;
-            p_tk->tss.ecx = 0;
-            p_tk->tss.edx = 0;
-            p_tk->tss.ebx = 0;
-            p_tk->tss.esp = 0;
-            p_tk->tss.ebp = 0;
-            p_tk->tss.esi = 0;
-            p_tk->tss.edi = 0;
-            p_tk->tss.es = 0;
-            p_tk->tss.cs = 0;
-            p_tk->tss.ss = 0;
-            p_tk->tss.ds = 0;
-            p_tk->tss.fs = 0;
-            p_tk->tss.gs = 0;
-            p_tk->tss.ldtr = 0;
-            p_tk->tss.iomap = 0x40000000;
-            
-            return  p_tk;
-        }
-       
-    }
-    
-    return 0;
-    
+	struct TASKLEVEL *tl = &taskctl->level[task->level];
+	tl->tasks[tl->running] = task;
+	tl->running++;
+	task->flags = 2; /* ìÆçÏíÜ */
+	return;
 }
 
-void Task_run( struct TASK *p_task)
+void task_remove(struct TASK *task)
 {
-    p_task->flags = TASK_RUN;
-    p_taskctl->arr_p_tasks[ p_taskctl->numRunning] = p_task;
-    p_taskctl->numRunning ++;
-    return;
-    
-    
+	int i;
+	struct TASKLEVEL *tl = &taskctl->level[task->level];
+
+	/* taskÇ™Ç«Ç±Ç…Ç¢ÇÈÇ©ÇíTÇ∑ */
+	for (i = 0; i < tl->running; i++) {
+		if (tl->tasks[i] == task) {
+			/* Ç±Ç±Ç…Ç¢ÇΩ */
+			break;
+		}
+	}
+
+	tl->running--;
+	if (i < tl->now) {
+		tl->now--; /* Ç∏ÇÍÇÈÇÃÇ≈ÅAÇ±ÇÍÇ‡Ç†ÇÌÇπÇƒÇ®Ç≠ */
+	}
+	if (tl->now >= tl->running) {
+		/* nowÇ™Ç®Ç©ÇµÇ»ílÇ…Ç»Ç¡ÇƒÇ¢ÇΩÇÁÅAèCê≥Ç∑ÇÈ */
+		tl->now = 0;
+	}
+	task->flags = 1; /* ÉXÉäÅ[ÉvíÜ */
+
+	/* Ç∏ÇÁÇµ */
+	for (; i < tl->running; i++) {
+		tl->tasks[i] = tl->tasks[i + 1];
+	}
+
+	return;
 }
 
-void Task_sleep( struct TASK *p_task)
+void task_switchsub(void)
 {
-    int i = 0;
-    char ts = 00;
-    //Â¶ÇÊûú‰ªªÂä°ÊòØËøêË°å‰∏≠ÁöÑ‰ªªÂä°ÔºåÂàôË¶ÅÊääËøô‰∏™‰ªªÂä°ÊâæÂá∫Êù•
-    //Âπ∂ÊääÂÆÉ‰ªéËøêË°åÁöÑ‰ªªÂä°ÂàóË°®‰∏≠ÁßªÈô§
-    //ÂêåÊó∂Ë¶Å‰øùËØÅÂÖ∂‰ªñ‰ªªÂä°‰∏çÂèóÂΩ±Âìç
-    if( p_task->flags == TASK_RUN)
-    {
-        if( p_task == p_taskctl->arr_p_tasks[ p_taskctl->now])
-            ts = 1;
-        
-        for( i = 0; i < p_taskctl->numRunning; i++)
-        {
-            if( p_task == p_taskctl->arr_p_tasks[ i])
-                break;
-            p_taskctl->numRunning --;
-            
-            if( i < p_taskctl->now)
-                p_taskctl->now --;
-            
-            for(; i < p_taskctl->numRunning; i++)
-            {
-                p_taskctl->arr_p_tasks[ i] = p_taskctl->arr_p_tasks[ i + 1];
-                
-            }
-            
-            p_task->flags = TASK_USE;
-            
-            if( ts)
-            {
-                if( p_taskctl->now >= p_taskctl->numRunning)
-                {
-                    p_taskctl->now = 0;
-                    
-                }
-                farjmp( 0, p_taskctl->arr_p_tasks[ p_taskctl->now]->sel);
-                
-            }
-            
-        }
-        
-    }
-   
-    return;
-    
-    
+	int i;
+	/* àÍî‘è„ÇÃÉåÉxÉãÇíTÇ∑ */
+	for (i = 0; i < MAX_TASKLEVELS; i++) {
+		if (taskctl->level[i].running > 0) {
+			break; /* å©Ç¬Ç©Ç¡ÇΩ */
+		}
+	}
+	taskctl->now_lv = i;
+	taskctl->lv_change = 0;
+	return;
 }
 
-void Task_switch(void)
+struct TASK *task_init(struct MEMMAN *memman)
 {
-    timer_settime( p_mt_timer, 2);
-    
-    if( p_taskctl->numRunning >= 2)
-    {
-        p_taskctl->now ++;
-        if( p_taskctl->now ==  p_taskctl->numRunning)
-        {
-            p_taskctl->now = 0;
-        }
-        farjmp(0, p_taskctl->arr_p_tasks[ p_taskctl->now]->sel );
-        
-    }
-    
-    return;
-    
+	int i;
+	struct TASK *task;
+	struct SEGMENT_DESCRIPTOR *gdt = (struct SEGMENT_DESCRIPTOR *) ADR_GDT;
+	taskctl = (struct TASKCTL *) memman_alloc_4k(memman, sizeof (struct TASKCTL));
+	for (i = 0; i < MAX_TASKS; i++) {
+		taskctl->tasks0[i].flags = 0;
+		taskctl->tasks0[i].sel = (TASK_GDT0 + i) * 8;
+		set_segmdesc(gdt + TASK_GDT0 + i, 103, (int) &taskctl->tasks0[i].tss, AR_TSS32);
+	}
+	for (i = 0; i < MAX_TASKLEVELS; i++) {
+		taskctl->level[i].running = 0;
+		taskctl->level[i].now = 0;
+	}
+	task = task_alloc();
+	task->flags = 2;	/* ìÆçÏíÜÉ}Å[ÉN */
+	task->priority = 2; /* 0.02ïb */
+	task->level = 0;	/* ç≈çÇÉåÉxÉã */
+	task_add(task);
+	task_switchsub();	/* ÉåÉxÉãê›íË */
+	load_tr(task->sel);
+	task_timer = timer_alloc();
+	timer_settime(task_timer, task->priority);
+	return task;
 }
 
-//=========================================================================//
-//                                                                         //
-//          P R I V A T E   D E F I N I T I O N S                          //
-//                                                                         //
-//=========================================================================//
-/// \name Private Functions
-/// \{
+struct TASK *task_alloc(void)
+{
+	int i;
+	struct TASK *task;
+	for (i = 0; i < MAX_TASKS; i++) {
+		if (taskctl->tasks0[i].flags == 0) {
+			task = &taskctl->tasks0[i];
+			task->flags = 1; /* égópíÜÉ}Å[ÉN */
+			task->tss.eflags = 0x00000202; /* IF = 1; */
+			task->tss.eax = 0; /* Ç∆ÇËÇ†Ç¶Ç∏0Ç…ÇµÇƒÇ®Ç≠Ç±Ç∆Ç…Ç∑ÇÈ */
+			task->tss.ecx = 0;
+			task->tss.edx = 0;
+			task->tss.ebx = 0;
+			task->tss.ebp = 0;
+			task->tss.esi = 0;
+			task->tss.edi = 0;
+			task->tss.es = 0;
+			task->tss.ds = 0;
+			task->tss.fs = 0;
+			task->tss.gs = 0;
+			task->tss.ldtr = 0;
+			task->tss.iomap = 0x40000000;
+			return task;
+		}
+	}
+	return 0; /* Ç‡Ç§ëSïîégópíÜ */
+}
 
+void task_run(struct TASK *task, int level, int priority)
+{
+	if (level < 0) {
+		level = task->level; /* ÉåÉxÉãÇïœçXÇµÇ»Ç¢ */
+	}
+	if (priority > 0) {
+		task->priority = priority;
+	}
 
+	if (task->flags == 2 && task->level != level) { /* ìÆçÏíÜÇÃÉåÉxÉãÇÃïœçX */
+		task_remove(task); /* Ç±ÇÍÇé¿çsÇ∑ÇÈÇ∆flagsÇÕ1Ç…Ç»ÇÈÇÃÇ≈â∫ÇÃifÇ‡é¿çsÇ≥ÇÍÇÈ */
+	}
+	if (task->flags != 2) {
+		/* ÉXÉäÅ[ÉvÇ©ÇÁãNÇ±Ç≥ÇÍÇÈèÍçá */
+		task->level = level;
+		task_add(task);
+	}
 
+	taskctl->lv_change = 1; /* éüâÒÉ^ÉXÉNÉXÉCÉbÉ`ÇÃÇ∆Ç´Ç…ÉåÉxÉãÇå©íºÇ∑ */
+	return;
+}
 
+void task_sleep(struct TASK *task)
+{
+	struct TASK *now_task;
+	if (task->flags == 2) {
+		/* ìÆçÏíÜÇæÇ¡ÇΩÇÁ */
+		now_task = task_now();
+		task_remove(task); /* Ç±ÇÍÇé¿çsÇ∑ÇÈÇ∆flagsÇÕ1Ç…Ç»ÇÈ */
+		if (task == now_task) {
+			/* é©ï™é©êgÇÃÉXÉäÅ[ÉvÇæÇ¡ÇΩÇÃÇ≈ÅAÉ^ÉXÉNÉXÉCÉbÉ`Ç™ïKóv */
+			task_switchsub();
+			now_task = task_now(); /* ê›íËå„Ç≈ÇÃÅAÅuåªç›ÇÃÉ^ÉXÉNÅvÇã≥Ç¶ÇƒÇ‡ÇÁÇ§ */
+			farjmp(0, now_task->sel);
+		}
+	}
+	return;
+}
 
-
-
-
-
-
-
-
-
+void task_switch(void)
+{
+	struct TASKLEVEL *tl = &taskctl->level[taskctl->now_lv];
+	struct TASK *new_task, *now_task = tl->tasks[tl->now];
+	tl->now++;
+	if (tl->now == tl->running) {
+		tl->now = 0;
+	}
+	if (taskctl->lv_change != 0) {
+		task_switchsub();
+		tl = &taskctl->level[taskctl->now_lv];
+	}
+	new_task = tl->tasks[tl->now];
+	timer_settime(task_timer, new_task->priority);
+	if (new_task != now_task) {
+		farjmp(0, new_task->sel);
+	}
+	return;
+}

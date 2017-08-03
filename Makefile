@@ -2,7 +2,7 @@ TOOLPATH = ../z_tools/
 INCPATH  = ../z_tools/haribote/
 
 OBJS_BOOTPACK = bootpack.obj naskfunc.obj hankaku.obj graphic.obj dsctbl.obj \
-		int.obj fifo.obj keyboard.obj memman.obj sheet.obj timer.obj mouse.obj mtask.obj
+		int.obj fifo.obj keyboard.obj memory.obj sheet.obj timer.obj mouse.obj mtask.obj
 
 MAKE     = $(TOOLPATH)make.exe -r
 MAKEFONT = $(TOOLPATH)makefont.exe

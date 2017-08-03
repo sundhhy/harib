@@ -54,5 +54,8 @@ _init_pic:
 _inthandler27:
 	PUSH	EBP
 	MOV	EBP,ESP
-	POP	EBP
+	PUSH	103
+	PUSH	32
+	CALL	_io_out8
+	LEAVE
 	RET

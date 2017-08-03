@@ -1,122 +1,44 @@
+/* キーボード関係 */
+
 #include "bootpack.h"
-#include <stdio.h>
 
-//============================================================================//
-//            G L O B A L   D E F I N I T I O N S                             //
-//============================================================================//
+struct FIFO32 *keyfifo;
+int keydata0;
 
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// module global vars
-//------------------------------------------------------------------------------
-
-
-//------------------------------------------------------------------------------
-// global function prototypes
-//------------------------------------------------------------------------------
-
-//============================================================================//
-//            P R I V A T E   D E F I N I T I O N S                           //
-//============================================================================//
-
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local types
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local vars
-//------------------------------------------------------------------------------
-
-static  struct FIFO32 *p_keyfifo;
-static  int keydata0;
-//------------------------------------------------------------------------------
-// local function prototypes
-//------------------------------------------------------------------------------
-
-
-
-//============================================================================//
-//            P U B L I C   F U N C T I O N S                                 //
-//============================================================================//
-void init_keyboard(struct FIFO32 *p_fifo, int data)
+void inthandler21(int *esp)
 {
-    p_keyfifo = p_fifo;
-    keydata0 = data;
-    
-	wait_KBC_sendready();
-	io_out8( PORT_KEYCMD, KEYCMD_WRITE_MODE);
-	wait_KBC_sendready();
-	io_out8( PORT_KEYDAT, KBC_MODE);
+	int data;
+	io_out8(PIC0_OCW2, 0x61);	/* IRQ-01受付完了をPICに通知 */
+	data = io_in8(PORT_KEYDAT);
+	fifo32_put(keyfifo, data + keydata0);
 	return;
-	
-	
 }
 
+#define PORT_KEYSTA				0x0064
+#define KEYSTA_SEND_NOTREADY	0x02
+#define KEYCMD_WRITE_MODE		0x60
+#define KBC_MODE				0x47
 
 void wait_KBC_sendready(void)
 {
-	for(;;)
-	{
-		if( ( !io_in8( PORT_KEYSTA) & KEYSTA_SEND_NOTREADY) == 0)
+	/* キーボードコントローラがデータ送信可能になるのを待つ */
+	for (;;) {
+		if ((io_in8(PORT_KEYSTA) & KEYSTA_SEND_NOTREADY) == 0) {
 			break;
-		
+		}
 	}
-	
 	return;
-	
 }
 
-void inthandler21( int *esp)
+void init_keyboard(struct FIFO32 *fifo, int data0)
 {
-	// struct BOOTINFO *binfo = ( struct BOOTINFO *)ADR_BOOTINFO;
-	// unsigned char data, s[4];
-    int data;
-	io_out8( PIC0_OCW2, 0x61);
-    data = io_in8(PORT_KEYDAT);
-    // data = data + keydata0;
-	
-	fifo32_put( p_keyfifo, data + keydata0);
-	
-	
-	
-	// sprintf(s, "%02x", data);
-	// BoxFill8( binfo->vram, binfo->scrnx, COL8_008484, 0, 16, 32 * 8 - 1, 31);
-	// Putfont8_asc( binfo->vram, binfo->scrnx, 0, 16,  COL8_FFFFFF, s);
-	
-	// for(;;)
-	// {
-		// io_hlt();
-	// }
-	
+	/* 書き込み先のFIFOバッファを記憶 */
+	keyfifo = fifo;
+	keydata0 = data0;
+	/* キーボードコントローラの初期化 */
+	wait_KBC_sendready();
+	io_out8(PORT_KEYCMD, KEYCMD_WRITE_MODE);
+	wait_KBC_sendready();
+	io_out8(PORT_KEYDAT, KBC_MODE);
 	return;
-	
 }
-
-
-
-//=========================================================================//
-//                                                                         //
-//          P R I V A T E   D E F I N I T I O N S                          //
-//                                                                         //
-//=========================================================================//
-/// \name Private Functions
-/// \{
-
-
-
-
-
-
-
-
-
-
-
-

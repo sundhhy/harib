@@ -1,207 +1,119 @@
+/* 僞僀儅娭學 */
 
 #include "bootpack.h"
 
-//============================================================================//
-//            G L O B A L   D E F I N I T I O N S                             //
-//============================================================================//
+#define PIT_CTRL	0x0043
+#define PIT_CNT0	0x0040
 
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
-#define PIT_CTRL        0x0043
-#define PIT_CNT0        0x0040
+struct TIMERCTL timerctl;
 
-#define TIMER_FLAGS_ALLOC           1  //已配置
-#define TIMER_FLAGS_USING           2   //运行中
-//------------------------------------------------------------------------------
-// module global vars
-//------------------------------------------------------------------------------
-struct TIMERCTL  timerctl;
+#define TIMER_FLAGS_ALLOC		1	/* 妋曐偟偨忬懺 */
+#define TIMER_FLAGS_USING		2	/* 僞僀儅嶌摦拞 */
 
-//------------------------------------------------------------------------------
-// global function prototypes
-//------------------------------------------------------------------------------
-
-//============================================================================//
-//            P R I V A T E   D E F I N I T I O N S                           //
-//============================================================================//
-
-//------------------------------------------------------------------------------
-// const defines
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local types
-//------------------------------------------------------------------------------
-
-//------------------------------------------------------------------------------
-// local vars
-//------------------------------------------------------------------------------
-
-
-//------------------------------------------------------------------------------
-// local function prototypes
-//------------------------------------------------------------------------------
-
-
-
-//============================================================================//
-//            P U B L I C   F U N C T I O N S                                 //
-//============================================================================//
-void init_pit( void)
+void init_pit(void)
 {
-    int i ;
-    struct TIMER *p;
-    io_out8( PIT_CTRL, 0x34);
-    io_out8( PIT_CNT0, 0x9c);
-    io_out8( PIT_CNT0, 0x2e);
-    timerctl.count = 0;
-    timerctl.nextTimeout = 0xffffffff;
-    for( i = 0; i < MAX_TIMER; i++)
-    {
-        timerctl.arr_timer[i].flags = 0;
-        
-    }
-    
-    //申请一个作为哨兵
-    p = timer_alloc();
-    p->timeout =0xffffffff;
-    p->next_p_timer = 0;
-    timerctl.p_timerHead = p;
-    return;
-}
-struct TIMER *timer_alloc( void)
-{
-    int i;
-    for( i = 0; i < MAX_TIMER; i++)
-    {
-       if( timerctl.arr_timer[i].flags == 0)
-       {
-           timerctl.arr_timer[i].flags = TIMER_FLAGS_ALLOC;
-           return timerctl.arr_timer + i;
-           
-       }
-        
-    }
-    
-    return 0;
-    
+	int i;
+	struct TIMER *t;
+	io_out8(PIT_CTRL, 0x34);
+	io_out8(PIT_CNT0, 0x9c);
+	io_out8(PIT_CNT0, 0x2e);
+	timerctl.count = 0;
+	for (i = 0; i < MAX_TIMER; i++) {
+		timerctl.timers0[i].flags = 0; /* 枹巊梡 */
+	}
+	t = timer_alloc(); /* 堦偮傕傜偭偰偔傞 */
+	t->timeout = 0xffffffff;
+	t->flags = TIMER_FLAGS_USING;
+	t->next = 0; /* 堦斣偆偟傠 */
+	timerctl.t0 = t; /* 崱偼斣暫偟偐偄側偄偺偱愭摢偱傕偁傞 */
+	timerctl.next = 0xffffffff; /* 斣暫偟偐偄側偄偺偱斣暫偺帪崗 */
+	return;
 }
 
-void timer_free( struct TIMER *p_timer)
+struct TIMER *timer_alloc(void)
 {
-    p_timer->flags = 0;
-    return;
-    
+	int i;
+	for (i = 0; i < MAX_TIMER; i++) {
+		if (timerctl.timers0[i].flags == 0) {
+			timerctl.timers0[i].flags = TIMER_FLAGS_ALLOC;
+			return &timerctl.timers0[i];
+		}
+	}
+	return 0; /* 尒偮偐傜側偐偭偨 */
 }
 
-void timer_init( struct TIMER *p_timer, struct FIFO32 *p_fifo, int data)
+void timer_free(struct TIMER *timer)
 {
-    p_timer->p_fifo = p_fifo;
-    p_timer->data = data;
-    return ;
-    
+	timer->flags = 0; /* 枹巊梡 */
+	return;
 }
 
-void timer_settime( struct TIMER *p_timer, uint32_t timeout)
+void timer_init(struct TIMER *timer, struct FIFO32 *fifo, int data)
 {
-    struct TIMER *now_timer, *next_timer;
-    int e, i, j;
-    p_timer->timeout = timerctl.count + timeout;
-    p_timer->flags = TIMER_FLAGS_USING;
-    
-    e = io_load_eflags();
-    io_cli();
-    
-    next_timer = timerctl.p_timerHead;
-     //插入到队列头部的情况
-    if( p_timer->timeout <= timerctl.p_timerHead->timeout)
-    {
-        timerctl.p_timerHead = p_timer;
-        p_timer->next_p_timer = next_timer;
-        timerctl.nextTimeout = timeout;
-        io_store_eflags( e);
-        return; 
-    }
-    
-    //找到放当前这个定时器的位置，即第一个比当前的超时时间大的位置
-    // now_timer = timerctl.p_timerHead;
-    // next_timer = now_timer->next_p_timer;
-    for( ;;)
-    {
-        now_timer = next_timer;
-        next_timer = next_timer->next_p_timer;
-        //用>= 是为了防止当timeout == 0xffffffff 时，哨兵失效
-        if( p_timer->timeout <= next_timer->timeout )
-        {
-            now_timer->next_p_timer = p_timer;
-            p_timer->next_p_timer = next_timer;
-            io_store_eflags( e);
-            return;
-        }
-           
-        
-    }
-    
-
-    
-	
-	
-	
-	
-    
+	timer->fifo = fifo;
+	timer->data = data;
+	return;
 }
 
-void inthandler20( int *esp)
+void timer_settime(struct TIMER *timer, unsigned int timeout)
 {
-    struct TIMER *p_timer;
-    short i, j;
-    //mtask
-    char ts = 0;
-    io_out8( PIC0_OCW2 , 0x60);
-    
-    timerctl.count ++;
-    if( timerctl.nextTimeout > timerctl.count )
-        return;
-    
-    p_timer = timerctl.p_timerHead;
-    for(;;)
-    {
-        //有未超时的，说要之后的都不会出现超时了，就退出循环了
-        if( p_timer->timeout > timerctl.count) 
-            break;
-        p_timer->flags = TIMER_FLAGS_ALLOC;
-        if( p_timer != p_mt_timer)
-        // if( 1)
-        {
-            fifo32_put( p_timer->p_fifo, p_timer->data);
-        }
-        else
-        {
-            ts = 1;
-            
-        }
-        p_timer = p_timer->next_p_timer;
-    }
-   
-    
-    
-    timerctl.p_timerHead = p_timer;
-    timerctl.nextTimeout = p_timer->timeout;
-
-    if( ts)
-    {
-        Task_switch();
-        // Mt_taskSwitch();
-    }
-    
-    return;
-    
+	int e;
+	struct TIMER *t, *s;
+	timer->timeout = timeout + timerctl.count;
+	timer->flags = TIMER_FLAGS_USING;
+	e = io_load_eflags();
+	io_cli();
+	t = timerctl.t0;
+	if (timer->timeout <= t->timeout) {
+		/* 愭摢偵擖傟傞応崌 */
+		timerctl.t0 = timer;
+		timer->next = t; /* 師偼t */
+		timerctl.next = timer->timeout;
+		io_store_eflags(e);
+		return;
+	}
+	/* 偳偙偵擖傟傟偽偄偄偐傪扵偡 */
+	for (;;) {
+		s = t;
+		t = t->next;
+		if (timer->timeout <= t->timeout) {
+			/* s偲t偺娫偵擖傟傞応崌 */
+			s->next = timer; /* s偺師偼timer */
+			timer->next = t; /* timer偺師偼t */
+			io_store_eflags(e);
+			return;
+		}
+	}
 }
-//=========================================================================//
-//                                                                         //
-//          P R I V A T E   D E F I N I T I O N S                          //
-//                                                                         //
-//=========================================================================//
-/// \name Private Functions
-/// \{
+
+void inthandler20(int *esp)
+{
+	struct TIMER *timer;
+	char ts = 0;
+	io_out8(PIC0_OCW2, 0x60);	/* IRQ-00庴晅姰椆傪PIC偵捠抦 */
+	timerctl.count++;
+	if (timerctl.next > timerctl.count) {
+		return;
+	}
+	timer = timerctl.t0; /* 偲傝偁偊偢愭摢偺斣抧傪timer偵戙擖 */
+	for (;;) {
+		/* timers偺僞僀儅偼慡偰摦嶌拞偺傕偺側偺偱丄flags傪妋擣偟側偄 */
+		if (timer->timeout > timerctl.count) {
+			break;
+		}
+		/* 僞僀儉傾僂僩 */
+		timer->flags = TIMER_FLAGS_ALLOC;
+		if (timer != task_timer) {
+			fifo32_put(timer->fifo, timer->data);
+		} else {
+			ts = 1; /* task_timer偑僞僀儉傾僂僩偟偨 */
+		}
+		timer = timer->next; /* 師偺僞僀儅偺斣抧傪timer偵戙擖 */
+	}
+	timerctl.t0 = timer;
+	timerctl.next = timer->timeout;
+	if (ts != 0) {
+		task_switch();
+	}
+	return;
+}
