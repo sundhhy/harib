@@ -37,37 +37,6 @@ hankaku.bin : hankaku.txt Makefile
 hankaku.obj : hankaku.bin Makefile
 	$(BIN2OBJ) hankaku.bin hankaku.obj _hankaku
 	
-#bootpack.gas : bootpack.c Makefile
-#	$(CC1) -o bootpack.gas bootpack.c
-
-#graphic.gas : graphic.c Makefile
-#	$(CC1) -o graphic.gas graphic.c
-	
-#dsctbl.gas : dsctbl.c Makefile
-#	$(CC1) -o dsctbl.gas dsctbl.c
-	
-#bootpack.nas : bootpack.gas Makefile
-#	$(GAS2NASK) bootpack.gas bootpack.nas
-	
-#graphic.nas : graphic.gas Makefile
-#	$(GAS2NASK) graphic.gas graphic.nas
-#dsctbl.nas : dsctbl.gas Makefile
-#	$(GAS2NASK) dsctbl.gas dsctbl.nas
-	
-
-
-#bootpack.obj : bootpack.nas Makefile
-#	$(NASK) bootpack.nas bootpack.obj bootpack.lst
-	
-#graphic.obj : graphic.nas Makefile
-#	$(NASK) graphic.nas graphic.obj graphic.lst	
-	
-#dsctbl.obj : dsctbl.nas Makefile
-#	$(NASK) dsctbl.nas dsctbl.obj dsctbl.lst
-	
-#int.obj : int.nas Makefile
-#	$(NASK) int.nas int.obj int.lst
-
 %.gas : %.c Makefile
 	$(CC1) -o $*.gas $*.c
 	
@@ -97,6 +66,8 @@ haribote.img : ipl10.bin haribote.sys Makefile
 	$(EDIMG)   imgin:../z_tools/fdimg0at.tek \
 		wbinimg src:ipl10.bin len:512 from:0 to:0 \
 		copy from:haribote.sys to:@: \
+        copy from:ipl10.nas to:@: \
+        copy from:make.bat to:@: \
 		imgout:haribote.img
 
 # ƒRƒ}ƒ“ƒh

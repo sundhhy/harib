@@ -8,6 +8,7 @@ struct BOOTINFO { /* 0x0ff0-0x0fff */
 	char *vram;
 };
 #define ADR_BOOTINFO	0x00000ff0
+#define ADR_DISKIMG		0x00100000
 
 /* naskfunc.nas */
 void io_hlt(void);
@@ -199,6 +200,7 @@ struct TSS32 {
 struct TASK {
 	int sel, flags; /* selÇÕGDTÇÃî‘çÜÇÃÇ±Ç∆ */
 	int level, priority;
+	struct FIFO32	fifo;
 	struct TSS32 tss;
 };
 struct TASKLEVEL {
@@ -213,6 +215,7 @@ struct TASKCTL {
 	struct TASK tasks0[MAX_TASKS];
 };
 extern struct TIMER *task_timer;
+struct TASK *task_now(void);
 struct TASK *task_init(struct MEMMAN *memman);
 struct TASK *task_alloc(void);
 void task_run(struct TASK *task, int level, int priority);

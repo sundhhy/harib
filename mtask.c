@@ -1,10 +1,50 @@
 /* マルチタスク関係 */
 
 #include "bootpack.h"
+//============================================================================//
+//            G L O B A L   D E F I N I T I O N S                             //
+//============================================================================//
 
+//------------------------------------------------------------------------------
+// const defines
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// module global vars
+//------------------------------------------------------------------------------
 struct TASKCTL *taskctl;
 struct TIMER *task_timer;
 
+//------------------------------------------------------------------------------
+// global function prototypes
+//------------------------------------------------------------------------------
+
+//============================================================================//
+//            P R I V A T E   D E F I N I T I O N S                           //
+//============================================================================//
+
+//------------------------------------------------------------------------------
+// const defines
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// local types
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
+// local vars
+//------------------------------------------------------------------------------
+
+
+//------------------------------------------------------------------------------
+// local function prototypes
+//------------------------------------------------------------------------------
+static void task_switchsub(void);
+static void task_idle(void);
+
+//============================================================================//
+//            P U B L I C   F U N C T I O N S                                 //
+//============================================================================//
 struct TASK *task_now(void)
 {
 	struct TASKLEVEL *tl = &taskctl->level[taskctl->now_lv];
@@ -51,24 +91,10 @@ void task_remove(struct TASK *task)
 	return;
 }
 
-void task_switchsub(void)
-{
-	int i;
-	/* 一番上のレベルを探す */
-	for (i = 0; i < MAX_TASKLEVELS; i++) {
-		if (taskctl->level[i].running > 0) {
-			break; /* 見つかった */
-		}
-	}
-	taskctl->now_lv = i;
-	taskctl->lv_change = 0;
-	return;
-}
-
 struct TASK *task_init(struct MEMMAN *memman)
 {
 	int i;
-	struct TASK *task;
+	struct TASK *task, *idle;
 	struct SEGMENT_DESCRIPTOR *gdt = (struct SEGMENT_DESCRIPTOR *) ADR_GDT;
 	taskctl = (struct TASKCTL *) memman_alloc_4k(memman, sizeof (struct TASKCTL));
 	for (i = 0; i < MAX_TASKS; i++) {
@@ -87,8 +113,22 @@ struct TASK *task_init(struct MEMMAN *memman)
 	task_add(task);
 	task_switchsub();	/* レベル設定 */
 	load_tr(task->sel);
+
+	idle = task_alloc();
+	idle->tss.esp = memman_alloc_4k(memman, 64 * 1024) + 64 * 1024;
+	idle->tss.eip = (int) &task_idle;
+	idle->tss.es = 1 * 8;
+	idle->tss.cs = 2 * 8;
+	idle->tss.ss = 1 * 8;
+	idle->tss.ds = 1 * 8;
+	idle->tss.fs = 1 * 8;
+	idle->tss.gs = 1 * 8;
+	task_run(idle, MAX_TASKLEVELS - 1, 1);
+
 	task_timer = timer_alloc();
 	timer_settime(task_timer, task->priority);
+
+
 	return task;
 }
 
@@ -178,3 +218,38 @@ void task_switch(void)
 	}
 	return;
 }
+//=========================================================================//
+//                                                                         //
+//          P R I V A T E   D E F I N I T I O N S                          //
+//                                                                         //
+//=========================================================================//
+/// \name Private Functions
+/// \{
+
+
+
+
+
+static void task_switchsub(void)
+{
+	int i;
+	/* 一番上のレベルを探す */
+	for (i = 0; i < MAX_TASKLEVELS; i++) {
+		if (taskctl->level[i].running > 0) {
+			break; /* 見つかった */
+		}
+	}
+	taskctl->now_lv = i;
+	taskctl->lv_change = 0;
+	return;
+}
+static void task_idle(void)
+{
+	for( ;;) {
+		io_hlt();
+	}
+
+
+}
+
+
