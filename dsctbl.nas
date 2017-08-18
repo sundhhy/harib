@@ -9,6 +9,7 @@
 	EXTERN	_asm_inthandler21
 	EXTERN	_asm_inthandler27
 	EXTERN	_asm_inthandler2c
+	EXTERN	_asm_hrb_api
 [FILE "dsctbl.c"]
 [SECTION .text]
 	GLOBAL	_init_gdtidt
@@ -80,6 +81,12 @@ L11:
 	PUSH	16
 	PUSH	_asm_inthandler2c
 	PUSH	2554208
+	CALL	_set_gatedesc
+	ADD	ESP,32
+	PUSH	142
+	PUSH	16
+	PUSH	_asm_hrb_api
+	PUSH	2554368
 	CALL	_set_gatedesc
 	LEA	ESP,DWORD [-8+EBP]
 	POP	EBX

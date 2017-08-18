@@ -30,7 +30,8 @@ void asm_inthandler27(void);
 void asm_inthandler2c(void);
 unsigned int memtest_sub(unsigned int start, unsigned int end);
 void farjmp(int eip, int cs);
-
+void farcall(int eip, int cs);
+void asm_hrb_api(void);
 /* fifo.c */
 struct FIFO32 {
 	int *buf;
@@ -221,3 +222,25 @@ struct TASK *task_alloc(void);
 void task_run(struct TASK *task, int level, int priority);
 void task_switch(void);
 void task_sleep(struct TASK *task);
+/*		windows.c	*/
+void make_textbox8(struct SHEET *sht, int x0, int y0, int sx, int sy, int c);
+void make_wtitle8(unsigned char *buf, int xsize,  char *title, char act);
+void make_window8(unsigned char *buf, int xsize, int ysize, char *title, char act);
+void putfonts8_asc_sht(struct SHEET *sht, int x, int y, int c, int b, char *s, int l);
+
+
+/*		console.c	*/
+void console_task( struct SHEET *sheet, unsigned int memtotal);
+void hrb_api( int edi, int esi, int ebp, int esp, int ebx, int edx, int ecx, int eax);
+
+/*		file.c		*/
+void file_readfat( int *fat, unsigned char *img);
+void file_loadfile( int clustno, int size, char *buf, int *fat, char *img);
+struct FILEINFO *file_search( char *name, struct FILEINFO *finfo, int max);
+
+struct FILEINFO {
+	unsigned char name[8], ext[3], type;
+	char		reserve[10];
+	unsigned short time, date, clusno;
+	unsigned int 	size;
+};
